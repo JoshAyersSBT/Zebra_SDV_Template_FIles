@@ -7,6 +7,7 @@ Each challenge file is written as a standalone Zebra `user_main.py` example.
 
 - `user_main_sensor_check.py`: displays sensor readings for mat tuning.
 - `user_main_format_a_solo.py`: Format A, three-lap solo loop challenge.
+- `user_main_format_a_solo_imu_only.py`: Format A using IMU turns and timed straight moves only.
 - `user_main_format_b_alliance.py`: Format B, trailer pickup and delivery challenge.
 - `user_main.py`: small selector file. Change its import to pick which program to flash.
 
@@ -38,3 +39,10 @@ The driving files now prefer sensor help when it is available:
 - `USE_COLOR_LINES = True` uses a downward color sensor to count the colored grid lines on the mat.
 - `LINE_CLEAR_MAX` is the clear-channel threshold for detecting a grid line. Use `user_main_sensor_check.py` to read the clear value over white mat areas, colored lines, and black intersections.
 - If a sensor is not installed or not tuned yet, set that feature to `False` and use the timing values.
+
+## Display Breadcrumbs
+
+Each standalone program prints the current section to both the Zebra display and
+the serial console. Watch for messages such as `Route plan`, `Lap segment`,
+`Gyro turn`, `Delivery`, and `Program stopping` to understand what the robot is
+doing while it runs.

@@ -1,8 +1,12 @@
-# Zebra SDV: Format A Solo Challenge
+# Zebra SDV: Format A Solo Challenge, IMU Only
 # Flash this file as user_main.py for the three-lap solo challenge.
 #
-# Only external robot helper used here:
-# from robot.ackermann import AckermannDrive
+# This version uses:
+# - AckermannDrive for the drive motor and steering servo
+# - the Zebra IMU gyro for turns
+# - timing for straight grid-cell driving
+#
+# It does not use color sensors or time-of-flight sensors.
 
 import time
 import uasyncio as asyncio
@@ -35,36 +39,23 @@ CENTER_ANGLE = 90
 LEFT_TURN_ANGLE = 55
 RIGHT_TURN_ANGLE = 125
 
-# Tune these timing values on the real game mat.
+# Tune CELL_MS until one grid-cell move is correct on the mat.
 DRIVE_POWER = 35
-TURN_POWER = 35
 CELL_MS = 1200
-TURN_90_MS = 750
 SETTLE_MS = 120
 
-# IMU turns use the Zebra gyro to stop near 90 degrees instead of guessing
-# only by time. If turns count the wrong way, change GYRO_SIGN to -1.
-USE_IMU_TURNS = True
+# IMU turn settings. If turns count the wrong way, change GYRO_SIGN to -1.
+TURN_POWER = 35
 GYRO_SIGN = 1
 GYRO_DEADBAND_DPS = 0.8
 TURN_TIMEOUT_MS = 4500
 
-# The mat has colored grid lines and black square intersections. If a downward
-# color sensor is installed, this can count those grid-line crossings.
-USE_COLOR_LINES = True
-FLOOR_COLOR_PORT = 2
-LINE_CLEAR_MAX = 900
-LINE_CENTER_MS = 600
-LINE_CHECK_MS = 40
-LINE_TIMEOUT_FACTOR = 1.5
-
-# Optional safety sensor. Set FRONT_TOF_PORT = None if not installed.
-FRONT_TOF_PORT = 1
-STOP_DISTANCE_MM = 150
+# If no IMU reading is found, the program falls back to this timed turn.
+TURN_90_MS = 750
 
 
-class TimedAckermannCar:
-    """Small driving helper kept inside this file so the program is standalone."""
+class ImuOnlyAckermannCar:
+    """Driving helper for timed straight moves and IMU-measured turns."""
 
     def __init__(self, zbot):
         self.zbot = zbot
@@ -86,87 +77,33 @@ class TimedAckermannCar:
         await asyncio.sleep_ms(SETTLE_MS)
 
     async def forward_cells(self, cells, label="Forward"):
-        """Drive forward for a number of grid cells."""
-        show_step(self.zbot, "Drive cells", label, "{} cells".format(cells))
-
-        if USE_COLOR_LINES and FLOOR_COLOR_PORT is not None:
-            whole_cells = int(cells)
-            partial_cells = float(cells) - whole_cells
-
-            for _ in range(whole_cells):
-                await self.forward_one_color_cell()
-
-            if partial_cells > 0:
-                await self.forward_timed_ms(int(round(partial_cells * CELL_MS)), label)
-            return
-
-        await self.forward_timed_ms(int(round(float(cells) * CELL_MS)), label)
-
-    async def forward_timed_ms(self, total_ms, label="Forward"):
-        """Drive forward for a fixed number of milliseconds."""
-        total_ms = int(total_ms)
+        """Drive straight for a timed number of grid cells."""
+        total_ms = int(round(float(cells) * CELL_MS))
         elapsed_ms = 0
         step_ms = 50
 
-        show_step(self.zbot, "Timed drive", label, "{} ms".format(total_ms))
+        show_step(self.zbot, "Timed drive", label, "{} cells".format(cells))
         self.drive.drive(DRIVE_POWER, CENTER_ANGLE)
 
         try:
             while elapsed_ms < total_ms:
-                if self.front_blocked():
-                    self.zbot.display("Stopped", "front ToF")
-                    break
-
                 await asyncio.sleep_ms(step_ms)
                 elapsed_ms += step_ms
         finally:
             await self.settle()
 
-    async def forward_one_color_cell(self):
-        """Drive until the downward color sensor sees the next colored grid line."""
-        timeout_ms = int(CELL_MS * LINE_TIMEOUT_FACTOR)
-        elapsed_ms = 0
-        saw_background = False
-
-        show_step(self.zbot, "Color drive", "looking line")
-        self.drive.drive(DRIVE_POWER, CENTER_ANGLE)
-
-        try:
-            while elapsed_ms < timeout_ms:
-                if self.front_blocked():
-                    self.zbot.display("Stopped", "front ToF")
-                    break
-
-                on_line = self.on_grid_line()
-                if not on_line:
-                    saw_background = True
-                elif saw_background:
-                    show_step(self.zbot, "Line found", "centering")
-                    await asyncio.sleep_ms(LINE_CENTER_MS)
-                    break
-
-                await asyncio.sleep_ms(LINE_CHECK_MS)
-                elapsed_ms += LINE_CHECK_MS
-        finally:
-            await self.settle()
-
     async def turn_left(self):
         show_step(self.zbot, "Turn command", "left")
-        if USE_IMU_TURNS:
-            await self.gyro_turn(-90)
-        else:
-            await self.timed_turn("left")
+        await self.gyro_turn(-90)
 
     async def turn_right(self):
         show_step(self.zbot, "Turn command", "right")
-        if USE_IMU_TURNS:
-            await self.gyro_turn(90)
-        else:
-            await self.timed_turn("right")
+        await self.gyro_turn(90)
 
     async def timed_turn(self, side):
-        show_step(self.zbot, "Timed turn", side)
+        """Backup turn used only when the IMU is not available."""
         angle = LEFT_TURN_ANGLE if side == "left" else RIGHT_TURN_ANGLE
+        show_step(self.zbot, "Timed turn", side)
         self.drive.drive(TURN_POWER, angle)
         await asyncio.sleep_ms(TURN_90_MS)
         await self.settle()
@@ -216,21 +153,6 @@ class TimedAckermannCar:
                     break
         finally:
             await self.settle()
-
-    def on_grid_line(self):
-        rgb = self.zbot.rgb(FLOOR_COLOR_PORT)
-        if rgb is None:
-            return False
-
-        clear = int(rgb.get("clear", 0))
-        return clear > 0 and clear <= LINE_CLEAR_MAX
-
-    def front_blocked(self):
-        if FRONT_TOF_PORT is None:
-            return False
-
-        distance = self.zbot.tof(FRONT_TOF_PORT)
-        return distance is not None and distance <= STOP_DISTANCE_MM
 
 
 def ticks_ms():
@@ -346,22 +268,21 @@ async def run_lap(car, segments, turn):
 
 
 async def main(zbot):
-    show_step(zbot, "Format A", "setup", START_GRID, DIRECTION)
-    car = TimedAckermannCar(zbot)
+    show_step(zbot, "Format A IMU", "setup", START_GRID, DIRECTION)
+    car = ImuOnlyAckermannCar(zbot)
     turn, segments = solo_plan(START_GRID, DIRECTION)
     show_step(zbot, "Route plan", "turn {}".format(turn), str(segments))
 
     try:
-        show_step(zbot, "Solo loop", "ready", START_GRID)
+        show_step(zbot, "Solo IMU", "ready", START_GRID)
         await asyncio.sleep_ms(800)
 
-        # The manual requires three complete laps.
         for lap in range(3):
             show_step(zbot, "Solo lap", str(lap + 1), "start")
             await run_lap(car, segments, turn)
             show_step(zbot, "Solo lap", str(lap + 1), "done")
 
-        show_step(zbot, "Solo loop", "done")
+        show_step(zbot, "Solo IMU", "done")
 
     finally:
         show_step(zbot, "Program", "stopping")

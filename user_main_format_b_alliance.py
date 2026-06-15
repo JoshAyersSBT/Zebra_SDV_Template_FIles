@@ -9,6 +9,12 @@ import uasyncio as asyncio
 from robot.ackermann import AckermannDrive
 
 
+def show_step(zbot, section, detail="", extra="", more=""):
+    """Show the current program section on the display and serial console."""
+    zbot.display(section, detail, extra, more)
+    print("SDV:", section, detail, extra, more)
+
+
 # -------------------------
 # Student setup values
 # -------------------------
@@ -124,11 +130,12 @@ class TimedAckermannCar:
 
     async def forward_cells(self, cells, label="Forward"):
         """Drive forward for a number of grid cells."""
+        show_step(self.zbot, "Drive cells", label, "{} cells".format(cells))
+
         if USE_COLOR_LINES and FLOOR_COLOR_PORT is not None:
             whole_cells = int(cells)
             partial_cells = float(cells) - whole_cells
 
-            self.zbot.display(label, "{} cells".format(cells))
             for _ in range(whole_cells):
                 await self.forward_one_color_cell()
 
@@ -144,7 +151,7 @@ class TimedAckermannCar:
         elapsed_ms = 0
         step_ms = 50
 
-        self.zbot.display(label, "{} ms".format(total_ms))
+        show_step(self.zbot, "Timed drive", label, "{} ms".format(total_ms))
         self.drive.drive(DRIVE_POWER, CENTER_ANGLE)
 
         try:
@@ -164,6 +171,7 @@ class TimedAckermannCar:
         elapsed_ms = 0
         saw_background = False
 
+        show_step(self.zbot, "Color drive", "looking line")
         self.drive.drive(DRIVE_POWER, CENTER_ANGLE)
 
         try:
@@ -176,7 +184,7 @@ class TimedAckermannCar:
                 if not on_line:
                     saw_background = True
                 elif saw_background:
-                    self.zbot.display("Line", "center")
+                    show_step(self.zbot, "Line found", "centering")
                     await asyncio.sleep_ms(LINE_CENTER_MS)
                     break
 
@@ -186,25 +194,28 @@ class TimedAckermannCar:
             await self.settle()
 
     async def turn_left(self):
+        show_step(self.zbot, "Turn command", "left")
         if USE_IMU_TURNS:
             await self.gyro_turn(-90)
         else:
             await self.timed_turn("left")
 
     async def turn_right(self):
+        show_step(self.zbot, "Turn command", "right")
         if USE_IMU_TURNS:
             await self.gyro_turn(90)
         else:
             await self.timed_turn("right")
 
     async def timed_turn(self, side):
-        self.zbot.display("Turn", side)
+        show_step(self.zbot, "Timed turn", side)
         angle = LEFT_TURN_ANGLE if side == "left" else RIGHT_TURN_ANGLE
         self.drive.drive(TURN_POWER, angle)
         await asyncio.sleep_ms(TURN_90_MS)
         await self.settle()
 
     async def turn_around(self):
+        show_step(self.zbot, "Turn command", "around")
         await self.turn_right()
         await self.turn_right()
 
@@ -214,7 +225,7 @@ class TimedAckermannCar:
         direction = 1 if degrees > 0 else -1
         steering = RIGHT_TURN_ANGLE if direction > 0 else LEFT_TURN_ANGLE
 
-        self.zbot.display("Gyro turn", "{} deg".format(int(degrees)))
+        show_step(self.zbot, "Gyro turn", "{} deg".format(int(degrees)), "bias")
         await self.settle()
 
         bias = await gyro_bias(self.zbot)
@@ -234,7 +245,7 @@ class TimedAckermannCar:
 
                 gz = gyro_z_dps(self.zbot)
                 if gz is None:
-                    self.zbot.display("Gyro turn", "No IMU")
+                    show_step(self.zbot, "Gyro turn", "No IMU", "timed fallback")
                     await self.timed_turn("right" if direction > 0 else "left")
                     return
 
@@ -246,20 +257,22 @@ class TimedAckermannCar:
                 if turned < 0.0:
                     turned = 0.0
 
-                self.zbot.display("Turning", "{}/{} deg".format(int(turned), int(target)))
+                self.zbot.display("Gyro turn", "{}/{} deg".format(int(turned), int(target)))
 
                 if ticks_diff(now, start_ms) > TURN_TIMEOUT_MS:
-                    self.zbot.display("Gyro turn", "timeout")
+                    show_step(self.zbot, "Gyro turn", "timeout")
                     break
         finally:
             await self.settle()
 
     async def hitch_open(self):
+        show_step(self.zbot, "Hitch", "open")
         if HITCH_SERVO_PORT is not None:
             self.zbot.servo(HITCH_SERVO_PORT).angle(HITCH_OPEN_ANGLE)
             await asyncio.sleep_ms(250)
 
     async def hitch_close(self):
+        show_step(self.zbot, "Hitch", "close")
         if HITCH_SERVO_PORT is not None:
             self.zbot.servo(HITCH_SERVO_PORT).angle(HITCH_CLOSED_ANGLE)
             await asyncio.sleep_ms(250)
@@ -392,6 +405,7 @@ async def follow_route(car, current, heading, route):
     route is the list of next grid squares to visit.
     """
     if not route:
+        show_step(car.zbot, "Route", "empty")
         return current, heading
 
     # On the first move, assume the robot was placed facing the first grid square.
@@ -399,6 +413,7 @@ async def follow_route(car, current, heading, route):
         heading = heading_between(current, route[0])
 
     for next_grid in route:
+        show_step(car.zbot, "Route step", current, "to {}".format(next_grid))
         target_heading = heading_between(current, next_grid)
         turn = turn_side(heading, target_heading)
 
@@ -418,10 +433,11 @@ async def follow_route(car, current, heading, route):
 
 async def deliver_one(car, current, heading, trailer, delivery_number):
     """Close the hitch at the pickup cell, drive to D3, then open the hitch."""
-    car.zbot.display("Delivery", str(delivery_number), "pickup")
+    show_step(car.zbot, "Delivery", str(delivery_number), "pickup {}".format(trailer))
     await car.hitch_close()
     await asyncio.sleep_ms(250)
 
+    show_step(car.zbot, "Delivery", str(delivery_number), "to D3")
     current, heading = await follow_route(
         car,
         current,
@@ -429,13 +445,14 @@ async def deliver_one(car, current, heading, trailer, delivery_number):
         DELIVERY_ROUTES[trailer],
     )
 
-    car.zbot.display("Delivery", str(delivery_number), "drop")
+    show_step(car.zbot, "Delivery", str(delivery_number), "drop")
     await car.hitch_open()
     await asyncio.sleep_ms(400)
     return current, heading
 
 
 async def main(zbot):
+    show_step(zbot, "Format B", "setup", START_GRID, TRAILER_SIDE)
     car = TimedAckermannCar(zbot)
     start = START_GRID.upper()
     trailer = TRAILER_SIDE.lower()
@@ -444,10 +461,11 @@ async def main(zbot):
     heading = None
 
     try:
-        zbot.display("Alliance", "{} {}".format(start, trailer))
+        show_step(zbot, "Alliance", "ready", "{} {}".format(start, trailer))
         await car.hitch_open()
         await asyncio.sleep_ms(800)
 
+        show_step(zbot, "Route", "start to pickup")
         current, heading = await follow_route(
             car,
             current,
@@ -457,9 +475,10 @@ async def main(zbot):
         current, heading = await deliver_one(car, current, heading, trailer, 1)
 
         for delivery in range(2, deliveries + 1):
-            zbot.display("Request", "trailer {}".format(delivery))
+            show_step(zbot, "Request", "trailer {}".format(delivery), "judge reload")
             await asyncio.sleep_ms(RELOAD_PAUSE_MS)
 
+            show_step(zbot, "Route", "return pickup")
             current, heading = await follow_route(
                 car,
                 current,
@@ -468,7 +487,8 @@ async def main(zbot):
             )
             current, heading = await deliver_one(car, current, heading, trailer, delivery)
 
-        zbot.display("Alliance", "done")
+        show_step(zbot, "Alliance", "done")
 
     finally:
+        show_step(zbot, "Program", "stopping")
         car.stop()

@@ -6,6 +6,12 @@
 import uasyncio as asyncio
 
 
+def show_step(zbot, section, detail="", extra="", more=""):
+    """Show the current program section on the display and serial console."""
+    zbot.display(section, detail, extra, more)
+    print("SDV:", section, detail, extra, more)
+
+
 # Downward color sensor used to inspect the mat.
 FLOOR_COLOR_PORT = 2
 
@@ -30,6 +36,9 @@ def gyro_z_dps(zbot):
 
 
 async def main(zbot):
+    show_step(zbot, "Sensor check", "starting")
+    await asyncio.sleep_ms(800)
+
     while True:
         color = None
         rgb = None
@@ -46,10 +55,16 @@ async def main(zbot):
             distance = zbot.tof(FRONT_TOF_PORT)
 
         zbot.display(
+            "Sensor check",
             "Color {}".format(color),
             "Clear {}".format(clear),
             "ToF {}".format(distance),
-            "GyroZ {}".format(gyro_z_dps(zbot)),
         )
+        print("SDV: Sensor check color={} clear={} tof={} gyroz={}".format(
+            color,
+            clear,
+            distance,
+            gyro_z_dps(zbot),
+        ))
 
         await asyncio.sleep_ms(250)
