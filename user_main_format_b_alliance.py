@@ -112,7 +112,7 @@ class TimedAckermannCar:
     def __init__(self, zbot):
         self.zbot = zbot
         self.drive = AckermannDrive(
-            zbot,
+            self.zbot,
             drive_motor_port=DRIVE_MOTOR_PORT,
             steering_port=STEERING_PORT,
             center_angle=CENTER_ANGLE,
