@@ -6,6 +6,7 @@ Each challenge file is written as a standalone Zebra `user_main.py` example.
 ## Files
 
 - `user_main_sensor_check.py`: displays sensor readings for mat tuning.
+- `user_main_servo_center_finder.py`: drives short test runs and uses the IMU to suggest a steering center angle.
 - `user_main_ackermann_6ft_right_turn_imu_only.py`: square-driving test with IMU-measured right turns.
 - `user_main_format_a_solo.py`: Format A, three-lap solo loop challenge.
 - `user_main_format_a_solo_imu_only.py`: Format A using IMU turns and timed straight moves only.

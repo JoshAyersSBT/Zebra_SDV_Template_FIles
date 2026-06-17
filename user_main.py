@@ -3,6 +3,7 @@
 
 # Options:
 # from user_main_sensor_check import main
+# from user_main_servo_center_finder import main
 # from user_main_ackermann_6ft_right_turn_imu_only import main
 # from user_main_format_a_solo import main
 # from user_main_format_a_solo_imu_only import main
