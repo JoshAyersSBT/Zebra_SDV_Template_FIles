@@ -6,6 +6,7 @@ Each challenge file is written as a standalone Zebra `user_main.py` example.
 ## Files
 
 - `user_main_sensor_check.py`: displays sensor readings for mat tuning.
+- `user_main_ackermann_6ft_right_turn_imu_only.py`: square-driving test with IMU-measured right turns.
 - `user_main_format_a_solo.py`: Format A, three-lap solo loop challenge.
 - `user_main_format_a_solo_imu_only.py`: Format A using IMU turns and timed straight moves only.
 - `user_main_format_b_alliance.py`: Format B, trailer pickup and delivery challenge.
@@ -13,7 +14,7 @@ Each challenge file is written as a standalone Zebra `user_main.py` example.
 
 ## Dependency Pattern
 
-The two driving programs use only one robot helper import:
+The two driving programs use one robot helper import:
 
 ```python
 from robot.ackermann import AckermannDrive

@@ -42,6 +42,14 @@ CELL_MS = 1200
 TURN_90_MS = 750
 SETTLE_MS = 120
 
+# IMU straight-line hold settings.
+# Bigger KP means the steering reacts harder when the robot drifts.
+# Bigger KD damps fast changes so the car is less likely to wiggle.
+# Bigger MAX_CORRECTION_DEG allows stronger steering corrections.
+IMU_HOLD_KP = 1.6
+IMU_HOLD_KD = 0.18
+IMU_HOLD_MAX_CORRECTION_DEG = 30
+
 # IMU turns use the Zebra gyro to stop near 90 degrees instead of guessing
 # only by time. If turns count the wrong way, change GYRO_SIGN to -1.
 USE_IMU_TURNS = True
@@ -75,6 +83,11 @@ class TimedAckermannCar:
             center_angle=CENTER_ANGLE,
             min_angle=45,
             max_angle=135,
+            imu_ref=True,
+            kp=IMU_HOLD_KP,
+            kd=IMU_HOLD_KD,
+            max_correction_deg=IMU_HOLD_MAX_CORRECTION_DEG,
+            gyro_deadband_dps=GYRO_DEADBAND_DPS,
         )
 
     def stop(self):
@@ -117,6 +130,9 @@ class TimedAckermannCar:
                     self.zbot.display("Stopped", "front ToF")
                     break
 
+                # Re-send a straight drive command each loop so the Ackermann
+                # helper keeps applying IMU steering corrections.
+                self.drive.drive(DRIVE_POWER, CENTER_ANGLE)
                 await asyncio.sleep_ms(step_ms)
                 elapsed_ms += step_ms
         finally:
@@ -136,6 +152,9 @@ class TimedAckermannCar:
                 if self.front_blocked():
                     self.zbot.display("Stopped", "front ToF")
                     break
+
+                # Keep heading hold active while searching for the next line.
+                self.drive.drive(DRIVE_POWER, CENTER_ANGLE)
 
                 on_line = self.on_grid_line()
                 if not on_line:

@@ -44,6 +44,14 @@ DRIVE_POWER = 35
 CELL_MS = 1200
 SETTLE_MS = 120
 
+# IMU straight-line hold settings.
+# Bigger KP means the steering reacts harder when the robot drifts.
+# Bigger KD damps fast changes so the car is less likely to wiggle.
+# Bigger MAX_CORRECTION_DEG allows stronger steering corrections.
+IMU_HOLD_KP = 1.6
+IMU_HOLD_KD = 0.18
+IMU_HOLD_MAX_CORRECTION_DEG = 30
+
 # IMU turn settings. If turns count the wrong way, change GYRO_SIGN to -1.
 TURN_POWER = 35
 GYRO_SIGN = 1
@@ -66,6 +74,11 @@ class ImuOnlyAckermannCar:
             center_angle=CENTER_ANGLE,
             min_angle=45,
             max_angle=135,
+            imu_ref=True,
+            kp=IMU_HOLD_KP,
+            kd=IMU_HOLD_KD,
+            max_correction_deg=IMU_HOLD_MAX_CORRECTION_DEG,
+            gyro_deadband_dps=GYRO_DEADBAND_DPS,
         )
 
     def stop(self):
@@ -87,6 +100,9 @@ class ImuOnlyAckermannCar:
 
         try:
             while elapsed_ms < total_ms:
+                # Re-send a straight drive command each loop so the Ackermann
+                # helper keeps applying IMU steering corrections.
+                self.drive.drive(DRIVE_POWER, CENTER_ANGLE)
                 await asyncio.sleep_ms(step_ms)
                 elapsed_ms += step_ms
         finally:
