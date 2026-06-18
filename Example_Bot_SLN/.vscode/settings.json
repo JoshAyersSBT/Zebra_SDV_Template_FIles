@@ -1,0 +1,6 @@
+{
+  "python.analysis.extraPaths": [
+    "./robot"
+  ],
+  "zebra.port": "COM7"
+}

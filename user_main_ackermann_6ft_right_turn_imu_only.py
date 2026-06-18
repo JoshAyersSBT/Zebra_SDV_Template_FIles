@@ -39,6 +39,13 @@ async def main(zbot):
     # you want. 1.0 meter is about 3.28 feet.
     SIDE_DISTANCE_M = 1.0
 
+    # During an Ackermann turn, the robot drives through an arc instead of
+    # spinning in place. That arc adds forward progress toward the next side of
+    # the square. Tune TURN_RADIUS_M until the square sides look even.
+    TURN_RADIUS_M = 0.20
+    TURN_DISTANCE_CREDIT_M = TURN_RADIUS_M * (math.pi / 2.0)
+    MIN_STRAIGHT_DISTANCE_M = 0.20
+
     # Square settings.
     SQUARE_LAPS = 3
     SIDES_PER_LAP = 4
@@ -311,6 +318,17 @@ async def main(zbot):
 
         return turned_abs_deg
 
+    def straight_target_for_side(lap, side):
+        """Return the straight distance after accounting for the last turn."""
+        if lap == 1 and side == 1:
+            return SIDE_DISTANCE_M
+
+        target_m = SIDE_DISTANCE_M - TURN_DISTANCE_CREDIT_M
+        if target_m < MIN_STRAIGHT_DISTANCE_M:
+            target_m = MIN_STRAIGHT_DISTANCE_M
+
+        return target_m
+
     async def drive_square_laps():
         """Drive around a square several times."""
         last_turn_deg = 0.0
@@ -319,7 +337,13 @@ async def main(zbot):
             show_step("Square lap", "{} of {}".format(lap, SQUARE_LAPS))
 
             for side in range(1, SIDES_PER_LAP + 1):
-                await drive_forward_distance(SIDE_DISTANCE_M, lap, side)
+                target_m = straight_target_for_side(lap, side)
+                show_step(
+                    "Side target",
+                    "L{} S{}".format(lap, side),
+                    "{:.2f} m".format(target_m),
+                )
+                await drive_forward_distance(target_m, lap, side)
                 await asyncio.sleep_ms(250)
 
                 last_turn_deg = await turn_right_degrees(RIGHT_TURN_DEG, lap, side)

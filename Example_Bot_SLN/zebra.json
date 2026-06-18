@@ -1,0 +1,10 @@
+{
+  "name": "Example_Bot_SLN",
+  "board": "esp32",
+  "framework": "micropython",
+  "runtime": "zebra",
+  "port": "COM7",
+  "baud": 460800,
+  "driverRepo": "https://github.com/JoshAyersSBT/ZbotDriver.git",
+  "driverRepoBranch": "main"
+}
